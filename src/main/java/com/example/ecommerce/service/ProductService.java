@@ -58,7 +58,7 @@ public class ProductService {
             .currency("USD")
             .stockQuantity(request.stockQuantity())
             .productStatus(Product.ProductStatus.ACTIVE)
-            .discountPercentage(request.discountPercentage())
+            .discountPercentage(request.discountPercentage() != null ? request.discountPercentage() : BigDecimal.ZERO)
             .build();
         
         Product savedProduct = productRepository.save(product);
@@ -91,8 +91,10 @@ public class ProductService {
         product.setProductDescription(request.productDescription());
         product.setPrice(request.price());
         product.setStockQuantity(request.stockQuantity());
-        product.setDiscountPercentage(request.discountPercentage());
-        
+        if (request.discountPercentage() != null) {
+            product.setDiscountPercentage(request.discountPercentage());
+        }
+
         if (request.productStatus() != null) {
             product.setProductStatus(Product.ProductStatus.valueOf(request.productStatus()));
         }
