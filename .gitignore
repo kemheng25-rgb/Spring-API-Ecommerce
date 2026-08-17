@@ -1,0 +1,24 @@
+# Dependencies
+target/
+*.jar
+*.war
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Env
+.env
+
+# graphify knowledge-graph output (generated, not part of the app)
+graphify-out/
