@@ -5,12 +5,16 @@ services:
       dockerfile: Dockerfile
     container_name: java-demo-api
     ports:
-      - "8080:8080"
+      # Host port changed from 8080 - an unrelated container on this machine
+      # (pricing-engine-api) intermittently claims 8080 while crash-looping.
+      - "8082:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - DATABASE_URL=jdbc:postgresql://db:5432/demodb
-      - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=postgres
+      # Overridable via a local, gitignored .env file (docker-compose reads it automatically) -
+      # e.g. to point at a remote Postgres instead of the local db service below.
+      - DATABASE_URL=${DATABASE_URL:-jdbc:postgresql://db:5432/demodb}
+      - DATABASE_USER=${DATABASE_USER:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
