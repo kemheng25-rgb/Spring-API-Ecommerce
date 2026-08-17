@@ -95,6 +95,17 @@ This builds the app image and starts everything it depends on:
 
 Tear down with `docker-compose down` (add `-v` to also drop the Postgres volume).
 
+## Standalone schema script
+
+[`sql/schema.sql`](sql/schema.sql) creates all 16 tables (PostgreSQL DDL) matching the
+current JPA entities exactly. The app itself doesn't run this automatically - Hibernate
+still manages the schema at runtime via `ddl-auto: update`. Use this when you want to
+stand up the schema by hand against a Postgres instance without booting the app first:
+
+```bash
+psql -h <host> -U <user> -d <database> -f sql/schema.sql
+```
+
 ## Tests
 
 ```bash
