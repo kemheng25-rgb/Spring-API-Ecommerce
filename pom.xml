@@ -123,9 +123,6 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <!-- com.example.demo.DemoApplication is a leftover starter stub that also
-                         declares @SpringBootApplication; without an explicit mainClass here,
-                         repackage/run fails with "Unable to find a single main class". -->
                     <mainClass>com.example.ecommerce.EcommerceApplication</mainClass>
                     <excludes>
                         <exclude>

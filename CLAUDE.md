@@ -1,7 +1,7 @@
 # java-api
 
 Spring Boot 3.2.5 REST API, Java 21, Maven. Lombok, Spring Data JPA, Bean Validation.
-H2 in dev, PostgreSQL in prod. Base package `com.example.demo`.
+H2 in dev, PostgreSQL in prod. Base package `com.example.ecommerce`.
 
 ## Commands
 
