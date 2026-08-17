@@ -1,15 +1,18 @@
 package com.example.ecommerce.service;
 
 import com.example.ecommerce.dto.OrderDTOs;
+import com.example.ecommerce.event.OrderPlacedEvent;
 import com.example.ecommerce.exception.InvalidOperationException;
 import com.example.ecommerce.exception.OutOfStockException;
 import com.example.ecommerce.exception.ResourceNotFoundException;
 import com.example.ecommerce.model.*;
 import com.example.ecommerce.repository.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -118,6 +121,52 @@ class OrderServiceTest {
         assertThat(response.items().get(0).unitPrice()).isEqualByComparingTo("19.99");
         verify(productService).reduceStock(100L, 2);
         verify(cartItemRepository).deleteByCartId(10L);
+    }
+
+    @Test
+    @DisplayName("placeOrder records an ORDER_PLACED outbox event in the same transaction")
+    void placeOrderRecordsOutboxEvent() throws Exception {
+        User buyer = buyer(1L);
+        Cart cart = Cart.builder().id(10L).user(buyer).build();
+        SellerProfile sellerProfile = seller(2L);
+        Product product = product(100L, sellerProfile, 5);
+        CartItem cartItem = CartItem.builder().id(500L).cart(cart).product(product)
+            .quantity(2).priceAtAdd(new BigDecimal("19.99")).build();
+        Address address = Address.builder().id(5L).user(buyer).build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartId(eq(10L), any()))
+            .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(cartItem)));
+        when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
+        when(orderRepository.findByOrderNumber(any())).thenReturn(Optional.empty());
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            if (o.getId() == null) o.setId(900L);
+            o.setItems(o.getItems() != null ? o.getItems() : Set.of());
+            return o;
+        });
+        Order persistedOrder = Order.builder().id(900L).orderNumber("ORD-2026-000900").buyer(buyer)
+            .orderStatus(Order.OrderStatus.PENDING).totalAmount(new BigDecimal("39.98"))
+            .orderDate(LocalDateTime.now()).updatedAt(LocalDateTime.now()).items(Set.of()).build();
+        when(orderRepository.findById(900L)).thenReturn(Optional.of(persistedOrder));
+
+        OrderDTOs.PlaceOrderRequest request = new OrderDTOs.PlaceOrderRequest(5L, null, "STANDARD");
+        orderService.placeOrder(1L, request);
+
+        ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(captor.capture());
+        OutboxEvent outboxEvent = captor.getValue();
+        assertThat(outboxEvent.getEventType()).isEqualTo("ORDER_PLACED");
+        assertThat(outboxEvent.getAggregateId()).isEqualTo(900L);
+        assertThat(outboxEvent.getStatus()).isEqualTo(OutboxEvent.Status.PENDING);
+
+        OrderPlacedEvent payload = new ObjectMapper().readValue(outboxEvent.getPayload(), OrderPlacedEvent.class);
+        assertThat(payload.buyerId()).isEqualTo(1L);
+        assertThat(payload.totalAmount()).isEqualByComparingTo("39.98");
+        assertThat(payload.items()).hasSize(1);
+        assertThat(payload.items().get(0).productId()).isEqualTo(100L);
+        assertThat(payload.items().get(0).quantity()).isEqualTo(2);
     }
 
     @Test

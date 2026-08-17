@@ -1,6 +1,7 @@
 package com.example.ecommerce.service;
 
 import com.example.ecommerce.dto.PaymentDTOs;
+import com.example.ecommerce.event.PaymentCompletedEvent;
 import com.example.ecommerce.exception.InvalidOperationException;
 import com.example.ecommerce.exception.PaymentFailedException;
 import com.example.ecommerce.model.Order;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -64,6 +66,12 @@ class PaymentServiceTest {
 
         assertThat(response.paymentStatus()).isEqualTo("COMPLETED");
         verify(orderService).confirmOrder(10L);
+
+        ArgumentCaptor<PaymentCompletedEvent> captor = ArgumentCaptor.forClass(PaymentCompletedEvent.class);
+        verify(applicationEventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().orderId()).isEqualTo(10L);
+        assertThat(captor.getValue().buyerId()).isEqualTo(1L);
+        assertThat(captor.getValue().amount()).isEqualByComparingTo("50.00");
     }
 
     @Test
@@ -80,6 +88,7 @@ class PaymentServiceTest {
             .isInstanceOf(PaymentFailedException.class);
 
         verify(orderService, never()).confirmOrder(anyLong());
+        verifyNoInteractions(applicationEventPublisher);
         assertThat(order.getOrderStatus()).isEqualTo(Order.OrderStatus.PENDING);
     }
 
