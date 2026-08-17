@@ -26,6 +26,9 @@ import java.util.List;
 @Slf4j
 public class OutboxPublisherService {
 
+    /** After this many failed attempts an event is given up on and marked terminally FAILED. */
+    static final int MAX_RETRIES = 5;
+
     private final OutboxEventRepository outboxEventRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
@@ -39,8 +42,15 @@ public class OutboxPublisherService {
                 event.setStatus(OutboxEvent.Status.PUBLISHED);
                 event.setPublishedAt(LocalDateTime.now());
             } catch (Exception ex) {
-                log.error("Failed to publish outbox event {} ({})", event.getId(), event.getEventType(), ex);
-                event.setStatus(OutboxEvent.Status.FAILED);
+                event.setRetryCount(event.getRetryCount() + 1);
+                if (event.getRetryCount() >= MAX_RETRIES) {
+                    log.error("Outbox event {} ({}) exhausted {} retries, giving up", event.getId(), event.getEventType(), MAX_RETRIES, ex);
+                    event.setStatus(OutboxEvent.Status.FAILED);
+                } else {
+                    log.warn("Failed to publish outbox event {} ({}), attempt {}/{} - will retry",
+                        event.getId(), event.getEventType(), event.getRetryCount(), MAX_RETRIES, ex);
+                    // Left PENDING: findTop50ByStatusOrderByCreatedAtAsc picks it up again next poll.
+                }
             }
             outboxEventRepository.save(event);
         }

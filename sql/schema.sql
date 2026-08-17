@@ -317,6 +317,7 @@ CREATE TABLE outbox_events (
     payload       TEXT NOT NULL,
     status        VARCHAR(20) NOT NULL,
     created_at    TIMESTAMP NOT NULL,
-    published_at  TIMESTAMP
+    published_at  TIMESTAMP,
+    retry_count   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_outbox_status_created ON outbox_events (status, created_at);

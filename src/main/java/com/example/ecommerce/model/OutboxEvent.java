@@ -41,6 +41,10 @@ public class OutboxEvent {
 
     private LocalDateTime publishedAt;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer retryCount = 0;
+
     public enum Status {
         PENDING, PUBLISHED, FAILED
     }

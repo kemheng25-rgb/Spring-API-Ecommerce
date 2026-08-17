@@ -63,20 +63,42 @@ class OutboxPublisherServiceTest {
     }
 
     @Test
-    @DisplayName("marks the event FAILED (without throwing) if the Kafka send fails")
-    void marksEventFailedOnSendError() {
+    @DisplayName("leaves a failed event PENDING with an incremented retryCount when retries remain")
+    void retriesOnSendErrorBelowMaxRetries() {
         OutboxEvent event = pendingEvent(2L, 200L);
         when(outboxEventRepository.findTop50ByStatusOrderByCreatedAtAsc(OutboxEvent.Status.PENDING))
             .thenReturn(List.of(event));
-        CompletableFuture<SendResult<String, String>> failed = new CompletableFuture<>();
-        failed.completeExceptionally(new RuntimeException("broker unavailable"));
-        when(kafkaTemplate.send(eq(KafkaConfig.ORDER_EVENTS_TOPIC), eq("200"), any())).thenReturn(failed);
+        when(kafkaTemplate.send(eq(KafkaConfig.ORDER_EVENTS_TOPIC), eq("200"), any())).thenReturn(failedSend());
+
+        outboxPublisherService.publishPendingEvents();
+
+        ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(OutboxEvent.Status.PENDING);
+        assertThat(captor.getValue().getRetryCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("gives up and marks the event FAILED once retryCount reaches MAX_RETRIES")
+    void marksEventFailedOnceRetriesExhausted() {
+        OutboxEvent event = pendingEvent(3L, 300L);
+        event.setRetryCount(OutboxPublisherService.MAX_RETRIES - 1);
+        when(outboxEventRepository.findTop50ByStatusOrderByCreatedAtAsc(OutboxEvent.Status.PENDING))
+            .thenReturn(List.of(event));
+        when(kafkaTemplate.send(eq(KafkaConfig.ORDER_EVENTS_TOPIC), eq("300"), any())).thenReturn(failedSend());
 
         outboxPublisherService.publishPendingEvents();
 
         ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
         verify(outboxEventRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(OutboxEvent.Status.FAILED);
+        assertThat(captor.getValue().getRetryCount()).isEqualTo(OutboxPublisherService.MAX_RETRIES);
+    }
+
+    private CompletableFuture<SendResult<String, String>> failedSend() {
+        CompletableFuture<SendResult<String, String>> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("broker unavailable"));
+        return failed;
     }
 
     @Test
