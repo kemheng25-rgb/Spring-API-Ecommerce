@@ -14,6 +14,11 @@ reservation, analytics, notifications) fan out asynchronously through Kafka and 
 
 ## Architecture
 
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full deep-dive: the domain model
+(ER diagram), both event-driven flows with sequence diagrams, the design decisions
+behind them, and a couple of Lombok/JPA gotchas worth knowing before you touch the
+entities. The summary below is enough to get oriented.
+
 ```
 Buyer places order  ─────▶  OrderService writes an OutboxEvent
                             in the SAME transaction as the order
