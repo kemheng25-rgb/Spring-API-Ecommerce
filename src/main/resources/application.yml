@@ -3,13 +3,11 @@ spring:
     name: demo-api
 
   # ---- Profiles: dev / prod ----
+  # Default is now prod (Postgres) - see java-api/CLAUDE.md, this replaces the previous
+  # "H2 in dev" convention. Pass -Dspring-boot.run.profiles=dev to get H2 back for a quick,
+  # throwaway run with no local Postgres needed.
   profiles:
-    active: dev
-
-# ---- CORS: browser-based clients (e.g. the Nuxt frontend) call this API directly from JS ----
-app:
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3002}
+    active: prod
 
   # ---- JPA / Hibernate ----
   jpa:
@@ -48,6 +46,11 @@ app:
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
+# ---- CORS: browser-based clients (e.g. the Nuxt frontend) call this API directly from JS ----
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3002,http://127.0.0.1:3002,http://172.21.110.15:3002}
+
 # ---- Swagger / OpenAPI ----
 springdoc:
   api-docs:
@@ -70,7 +73,10 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:h2:mem:demodb
+    # DB_CLOSE_DELAY=-1 keeps this in-memory DB alive for the JVM's lifetime - without it,
+    # H2 drops the entire database (including the schema) the moment the connection pool's
+    # last connection closes, which silently wipes all data with no error until the next query.
+    url: jdbc:h2:mem:demodb;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -88,7 +94,9 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/demodb}
+    # Host port is 5434, not Postgres's usual 5432 - see docker-compose.yml's db service comment
+    # (a native Windows Postgres install already owns 5432 on this machine).
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5434/demodb}
     driver-class-name: org.postgresql.Driver
     username: ${DATABASE_USER:postgres}
     password: ${DATABASE_PASSWORD:postgres}

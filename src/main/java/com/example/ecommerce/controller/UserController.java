@@ -51,6 +51,12 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUserProfile(id, request));
     }
 
+    @GetMapping
+    @Operation(summary = "Admin: list all user accounts")
+    public ResponseEntity<Page<UserDTOs.UserResponse>> getAll(Pageable pageable) {
+        return ResponseEntity.ok(userService.getAllUsers(pageable));
+    }
+
     @GetMapping("/sellers")
     @Operation(summary = "List users who have a seller role enabled")
     public ResponseEntity<Page<UserDTOs.UserResponse>> getSellers(Pageable pageable) {
@@ -70,11 +76,47 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/{id}/seller-role")
+    @Operation(summary = "Admin: revoke the seller role for a user")
+    public ResponseEntity<Void> revokeSellerRole(@PathVariable Long id) {
+        userService.revokeSellerRole(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/suspend")
     @Operation(summary = "Admin: suspend a user account")
     public ResponseEntity<Void> suspend(
             @PathVariable Long id, @RequestParam Long adminUserId, @RequestParam(required = false) String reason) {
         userService.suspendUser(id, adminUserId, reason);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reactivate")
+    @Operation(summary = "Admin: reactivate a suspended user account")
+    public ResponseEntity<Void> reactivate(@PathVariable Long id, @RequestParam Long adminUserId) {
+        userService.reactivateUser(id, adminUserId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/admin-role")
+    @Operation(summary = "Admin: grant the admin role to a user")
+    public ResponseEntity<Void> grantAdminRole(@PathVariable Long id, @RequestParam Long adminUserId) {
+        userService.grantAdminRole(id, adminUserId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/admin-role")
+    @Operation(summary = "Admin: revoke the admin role from a user")
+    public ResponseEntity<Void> revokeAdminRole(@PathVariable Long id, @RequestParam Long adminUserId) {
+        userService.revokeAdminRole(id, adminUserId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reset-password")
+    @Operation(summary = "Admin: reset a user's password")
+    public ResponseEntity<Void> resetPassword(
+            @PathVariable Long id, @Valid @RequestBody UserDTOs.PasswordResetRequest request, @RequestParam Long adminUserId) {
+        userService.resetPassword(id, request, adminUserId);
         return ResponseEntity.noContent().build();
     }
 

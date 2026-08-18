@@ -61,6 +61,10 @@ public class User {
     private Boolean isSeller = false;
 
     @Builder.Default
+    @Column(nullable = false)
+    private Boolean isAdmin = false;
+
+    @Builder.Default
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 

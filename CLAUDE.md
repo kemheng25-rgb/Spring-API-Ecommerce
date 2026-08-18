@@ -1,7 +1,11 @@
 # java-api
 
 Spring Boot 3.2.5 REST API, Java 21, Maven. Lombok, Spring Data JPA, Bean Validation.
-H2 in dev, PostgreSQL in prod. Base package `com.example.ecommerce`.
+PostgreSQL by default (`prod` profile - despite the name, this is also the everyday local
+dev target now; needs `docker-compose up db` and `sql/schema.sql` applied first, since
+`ddl-auto: validate` won't create the schema for you). H2 in-memory is still available as
+the `dev` profile for a quick throwaway run with no local Postgres - pass
+`-Dspring-boot.run.profiles=dev`. Base package `com.example.ecommerce`.
 
 ## Commands
 

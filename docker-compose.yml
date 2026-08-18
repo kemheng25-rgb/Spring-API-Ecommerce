@@ -33,7 +33,10 @@ services:
     image: postgres:16-alpine
     container_name: java-demo-db
     ports:
-      - "5432:5432"
+      # Host port changed from 5432 - a native Windows Postgres install (pg_ctl/postgres.exe,
+      # unrelated to Docker) already listens there and silently intercepts the connection
+      # before it reaches this container, causing confusing password-auth failures.
+      - "5434:5432"
     environment:
       - POSTGRES_DB=demodb
       - POSTGRES_USER=postgres
@@ -73,6 +76,21 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    restart: unless-stopped
+
+  # Web UI for the kafka service above - browse order.events, tail messages, check
+  # inventory-service/analytics-service consumer group lag, without the kafka-*.sh CLI scripts.
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: java-demo-kafka-ui
+    ports:
+      - "8085:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
     restart: unless-stopped
 
   # notification.queue - Payment publishes here (after commit) for the notification consumer.

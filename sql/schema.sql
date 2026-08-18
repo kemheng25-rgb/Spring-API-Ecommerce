@@ -25,6 +25,7 @@ CREATE TABLE users (
     last_login_at     TIMESTAMP,
     is_buyer          BOOLEAN NOT NULL,
     is_seller         BOOLEAN NOT NULL,
+    is_admin          BOOLEAN NOT NULL,
     created_at        TIMESTAMP NOT NULL,
     updated_at        TIMESTAMP NOT NULL,
     deleted_at        TIMESTAMP

@@ -38,14 +38,21 @@ public class UserDTOs {
         Boolean emailVerified,
         Boolean isBuyer,
         Boolean isSeller,
+        Boolean isAdmin,
         String createdAt
     ) {}
     
     public record UserProfileUpdateRequest(
         @NotBlank(message = "Full name is required")
         String fullName,
-        
+
         @Pattern(regexp = "^[+]?[0-9]{10,15}$", message = "Phone number must be valid")
         String phone
+    ) {}
+
+    public record PasswordResetRequest(
+        @NotBlank(message = "Password is required")
+        @Size(min = 8, message = "Password must be at least 8 characters")
+        String newPassword
     ) {}
 }

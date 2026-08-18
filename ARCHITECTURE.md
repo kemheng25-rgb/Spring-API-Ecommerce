@@ -175,16 +175,31 @@ one twice.
 - **Stock is reduced once, at order placement**, not per payment attempt - a failed
   payment leaves the order `PENDING` (retry or cancel-for-restock), it does not
   re-reduce or restore stock.
+- **Roles are just booleans on `User`** (`isBuyer`, `isSeller`, `isAdmin`), not a
+  separate roles/permissions table - there's no session or JWT, so the API has no
+  concept of "the caller" independent of the ids the client sends. Admin endpoints
+  (`UserController`'s suspend/reactivate/admin-role/seller-role, `SellerProfileController`
+  verify/reject, `DisputeController` assign/resolve) take an `adminUserId` query
+  param purely for the `AuditLogService` trail - the server never checks that id's
+  `isAdmin` flag before acting on it. `isAdmin` gates the frontend's `/admin/*` pages
+  (Ecommerce nuxt js's `admin.ts` middleware) but is not a real security boundary;
+  anyone who can reach the API directly can call these endpoints regardless of role.
 
 ## 5. Deployment topology
 
 ```mermaid
 flowchart LR
-    subgraph "Local dev (default)"
-        AppDev["mvn spring-boot:run<br/>(dev profile)"] --> H2[(H2, in-memory)]
+    subgraph "Local dev (default: prod profile)"
+        AppDev["mvn spring-boot:run<br/>(prod profile, Postgres)"] --> DBLocal[("db container<br/>(Postgres, schema.sql applied)")]
+        AppDev --> KafkaLocal[kafka container]
+        AppDev --> RabbitLocal[rabbitmq container]
     end
 
-    subgraph "docker-compose"
+    subgraph "Local dev (opt-in: -Dspring-boot.run.profiles=dev)"
+        AppDevH2["mvn spring-boot:run<br/>(dev profile)"] --> H2[(H2, in-memory)]
+    end
+
+    subgraph "docker-compose (full stack)"
         AppC[api container] --> DBC[(db: Postgres)]
         AppC --> KafkaC[kafka]
         AppC --> RabbitC[rabbitmq]
@@ -194,6 +209,8 @@ flowchart LR
         AppC -.->|"DATABASE_URL override via .env"| ExtDB[(external Postgres instance)]
     end
 ```
+
+Note the prod profile still needs `ddl-auto: validate` satisfied by hand - `docker-compose up db kafka rabbitmq` to start the brokers, then `sql/schema.sql` applied once against `demodb` (Hibernate won't create the schema itself in this profile, unlike the `dev`/H2 path where `ddl-auto: update` does it automatically).
 
 `docker-compose.yml`'s `api` service reads `DATABASE_URL` / `DATABASE_USER` /
 `DATABASE_PASSWORD` with the local `db` service as the default - a local, gitignored

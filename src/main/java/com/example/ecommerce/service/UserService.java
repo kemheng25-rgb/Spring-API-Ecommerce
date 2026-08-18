@@ -39,6 +39,7 @@ public class UserService {
             .emailVerified(false)
             .isBuyer(true)
             .isSeller(false)
+            .isAdmin(false)
             .build();
         
         User savedUser = userRepository.save(user);
@@ -99,15 +100,29 @@ public class UserService {
         return userRepository.findByIsBuyer(true, pageable)
             .map(this::mapToUserResponse);
     }
-    
+
+    @Transactional(readOnly = true)
+    public Page<UserDTOs.UserResponse> getAllUsers(Pageable pageable) {
+        return userRepository.findAll(pageable)
+            .map(this::mapToUserResponse);
+    }
+
     public void enableSellerRole(Long userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        
+
         user.setIsSeller(true);
         userRepository.save(user);
     }
-    
+
+    public void revokeSellerRole(Long userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        user.setIsSeller(false);
+        userRepository.save(user);
+    }
+
     public void suspendUser(Long userId, Long adminUserId, String reason) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User", userId));
@@ -115,6 +130,42 @@ public class UserService {
         user.setAccountStatus(User.AccountStatus.SUSPENDED);
         userRepository.save(user);
         auditLogService.log(adminUserId, "SUSPEND_USER", "USER", userId, Map.of("reason", reason != null ? reason : ""));
+    }
+
+    public void reactivateUser(Long userId, Long adminUserId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        user.setAccountStatus(User.AccountStatus.ACTIVE);
+        userRepository.save(user);
+        auditLogService.log(adminUserId, "REACTIVATE_USER", "USER", userId, Map.of());
+    }
+
+    public void grantAdminRole(Long userId, Long adminUserId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        user.setIsAdmin(true);
+        userRepository.save(user);
+        auditLogService.log(adminUserId, "GRANT_ADMIN_ROLE", "USER", userId, Map.of());
+    }
+
+    public void revokeAdminRole(Long userId, Long adminUserId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        user.setIsAdmin(false);
+        userRepository.save(user);
+        auditLogService.log(adminUserId, "REVOKE_ADMIN_ROLE", "USER", userId, Map.of());
+    }
+
+    public void resetPassword(Long userId, UserDTOs.PasswordResetRequest request, Long adminUserId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        user.setPasswordHash(passwordEncoderService.encode(request.newPassword()));
+        userRepository.save(user);
+        auditLogService.log(adminUserId, "RESET_PASSWORD", "USER", userId, Map.of());
     }
 
     public void deleteUser(Long userId) {
@@ -145,6 +196,7 @@ public class UserService {
             user.getEmailVerified(),
             user.getIsBuyer(),
             user.getIsSeller(),
+            user.getIsAdmin(),
             user.getCreatedAt().toString()
         );
     }
