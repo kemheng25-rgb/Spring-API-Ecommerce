@@ -40,6 +40,7 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final OrderService orderService;
+    private final SellerLedgerService sellerLedgerService;
     private final ApplicationEventPublisher applicationEventPublisher;
 
     public PaymentDTOs.PaymentResponse processPayment(Long buyerId, PaymentDTOs.ProcessPaymentRequest request) {
@@ -86,6 +87,7 @@ public class PaymentService {
         Payment saved = paymentRepository.save(payment);
 
         orderService.confirmOrder(order.getId());
+        sellerLedgerService.recordSale(order);
         applicationEventPublisher.publishEvent(
             new PaymentCompletedEvent(saved.getId(), order.getId(), buyerId, saved.getAmount(), saved.getTransactionId()));
 

@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -96,6 +97,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
     }
     
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException ex, WebRequest request) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.PAYLOAD_TOO_LARGE.value(),
+                "Uploaded file exceeds the maximum allowed size",
+                request.getDescription(false),
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ValidationErrorResponse> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex, WebRequest request) {

@@ -21,6 +21,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Page<Review> findByProductIdAndReviewStatusOrderByRatingDesc(Long productId, Review.ReviewStatus status, Pageable pageable);
     
     Page<Review> findByBuyerId(Long buyerId, Pageable pageable);
+
+    Page<Review> findByReviewStatusOrderByCreatedAtDesc(Review.ReviewStatus status, Pageable pageable);
+
+    @Query("SELECT r FROM Review r WHERE r.product.seller.id = :sellerId ORDER BY r.createdAt DESC")
+    Page<Review> findBySellerId(@Param("sellerId") Long sellerId, Pageable pageable);
     
     Page<Review> findByProductIdAndIsLockedFalseOrderByHelpfulCountDesc(Long productId, Pageable pageable);
     

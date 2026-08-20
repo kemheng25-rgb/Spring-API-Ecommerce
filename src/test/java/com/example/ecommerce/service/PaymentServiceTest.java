@@ -36,6 +36,7 @@ class PaymentServiceTest {
     @Mock private OrderRepository orderRepository;
     @Mock private UserRepository userRepository;
     @Mock private OrderService orderService;
+    @Mock private SellerLedgerService sellerLedgerService;
     @Mock private ApplicationEventPublisher applicationEventPublisher;
 
     private PaymentService paymentService;
@@ -46,7 +47,7 @@ class PaymentServiceTest {
     @BeforeEach
     void setUp() {
         paymentService = new PaymentService(paymentRepository, orderRepository, userRepository, orderService,
-            applicationEventPublisher);
+            sellerLedgerService, applicationEventPublisher);
         buyer = User.builder().id(1L).fullName("Buyer").email("b@e.com").build();
         order = Order.builder().id(10L).buyer(buyer).orderStatus(Order.OrderStatus.PENDING)
             .totalAmount(new BigDecimal("50.00")).items(Set.of()).build();

@@ -32,6 +32,7 @@ class RefundServiceTest {
     @Mock private PaymentRepository paymentRepository;
     @Mock private UserRepository userRepository;
     @Mock private AuditLogService auditLogService;
+    @Mock private SellerLedgerService sellerLedgerService;
 
     private RefundService refundService;
     private User admin;
@@ -39,7 +40,7 @@ class RefundServiceTest {
 
     @BeforeEach
     void setUp() {
-        refundService = new RefundService(refundRepository, paymentRepository, userRepository, auditLogService);
+        refundService = new RefundService(refundRepository, paymentRepository, userRepository, auditLogService, sellerLedgerService);
         admin = User.builder().id(1L).fullName("Admin").build();
         payment = Payment.builder().id(20L).amount(new BigDecimal("100.00"))
             .paymentStatus(Payment.PaymentStatus.COMPLETED)

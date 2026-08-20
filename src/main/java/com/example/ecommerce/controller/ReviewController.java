@@ -53,6 +53,18 @@ public class ReviewController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/api/v1/reviews")
+    @Operation(summary = "Admin: list reviews by status (e.g. PENDING) for moderation, across all products")
+    public ResponseEntity<Page<ReviewDTOs.ReviewResponse>> byStatus(@RequestParam String status, Pageable pageable) {
+        return ResponseEntity.ok(reviewService.getReviewsByStatus(status, pageable));
+    }
+
+    @GetMapping("/api/v1/sellers/{sellerId}/reviews")
+    @Operation(summary = "Seller: reviews across all of their products, so they can respond")
+    public ResponseEntity<Page<ReviewDTOs.ReviewResponse>> bySeller(@PathVariable Long sellerId, Pageable pageable) {
+        return ResponseEntity.ok(reviewService.getSellerReviews(sellerId, pageable));
+    }
+
     @PostMapping("/api/v1/sellers/{sellerId}/reviews/{reviewId}/response")
     @Operation(summary = "Seller responds to a review of their product")
     public ResponseEntity<ReviewDTOs.ReviewResponse> respond(

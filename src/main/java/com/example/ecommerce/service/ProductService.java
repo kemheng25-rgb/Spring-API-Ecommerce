@@ -9,6 +9,7 @@ import com.example.ecommerce.model.Category;
 import com.example.ecommerce.model.Product;
 import com.example.ecommerce.model.SellerProfile;
 import com.example.ecommerce.repository.CategoryRepository;
+import com.example.ecommerce.repository.ProductImageRepository;
 import com.example.ecommerce.repository.ProductRepository;
 import com.example.ecommerce.repository.SellerProfileRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final SellerProfileRepository sellerProfileRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductImageRepository productImageRepository;
     
     public ProductDTOs.ProductResponse createProduct(Long sellerId, ProductDTOs.ProductCreateRequest request) {
         // Verify seller exists
@@ -111,7 +113,7 @@ public class ProductService {
     
     @Transactional(readOnly = true)
     public Page<ProductDTOs.ProductListResponse> getProductsBySeller(Long sellerId, Pageable pageable) {
-        return productRepository.findBySellerIdAndProductStatus(sellerId, Product.ProductStatus.ACTIVE, pageable)
+        return productRepository.findBySellerId(sellerId, pageable)
             .map(this::mapToProductListResponse);
     }
     
@@ -170,10 +172,11 @@ public class ProductService {
             product.getSeller().getId(),
             product.getSeller().getShopName(),
             product.getViewsCount(),
-            product.getCreatedAt().toString()
+            product.getCreatedAt().toString(),
+            primaryImageUrl(product.getId())
         );
     }
-    
+
     private ProductDTOs.ProductListResponse mapToProductListResponse(Product product) {
         return new ProductDTOs.ProductListResponse(
             product.getId(),
@@ -184,7 +187,14 @@ public class ProductService {
             product.getTotalReviews(),
             product.getDiscountPercentage(),
             product.getCategory().getCategoryName(),
-            product.getSeller().getShopName()
+            product.getSeller().getShopName(),
+            primaryImageUrl(product.getId())
         );
+    }
+
+    private String primaryImageUrl(Long productId) {
+        return productImageRepository.findFirstByProductIdOrderByDisplayOrderAsc(productId)
+            .map(com.example.ecommerce.model.ProductImage::getImageUrl)
+            .orElse(null);
     }
 }

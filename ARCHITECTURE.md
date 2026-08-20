@@ -44,6 +44,7 @@ erDiagram
     SELLER_PROFILE ||--o{ PRODUCT : lists
     SELLER_PROFILE ||--o{ ORDER_ITEM : fulfills
     SELLER_PROFILE ||--o{ DISPUTE : "responds to"
+    SELLER_PROFILE ||--o{ SELLER_LEDGER_ENTRY : earns
 
     CATEGORY ||--o{ CATEGORY : "parent of"
     CATEGORY ||--o{ PRODUCT : categorizes
@@ -61,6 +62,7 @@ erDiagram
     ORDER ||--o| DISPUTE : "disputed as"
 
     ORDER_ITEM ||--o| REVIEW : "reviewed as"
+    ORDER_ITEM ||--o{ SELLER_LEDGER_ENTRY : "earns via"
     PAYMENT ||--o{ REFUND : "refunded via"
 ```
 
@@ -175,6 +177,36 @@ one twice.
 - **Stock is reduced once, at order placement**, not per payment attempt - a failed
   payment leaves the order `PENDING` (retry or cancel-for-restock), it does not
   re-reduce or restore stock.
+- **The seller earnings ledger (`GET /sellers/{id}/ledger`, `.../ledger/summary`) is a
+  persisted, append-only audit trail**, not a live computation - `seller_ledger_entries`
+  holds one immutable row per financial event (`SALE`, `REFUND_ADJUSTMENT`,
+  `CANCELLATION`), written by `SellerLedgerService.recordSale()` /
+  `recordRefundAdjustment()` / `recordCancellation()` in the *same transaction* as the
+  event that caused it (`PaymentService.processPayment()`, `RefundService.processRefund()`,
+  `OrderService.cancelOrder()`), mirroring the outbox principle above: a financial record
+  must never disagree with the event that produced it. This replaced an earlier version
+  that derived the ledger live from `OrderItem` + `Payment` on every read, kept specifically
+  to avoid a `ddl-auto: validate` schema change; that trade-off was revisited once "audit
+  and history" was an explicit requirement, since a derived value can't preserve history -
+  a later `SellerProfile.commissionRate` change would silently rewrite the past. Each row
+  snapshots the `commissionRate` that was in effect when it was written, so a rate change
+  never distorts an already-recorded entry or a refund/cancellation reversing it. A refund
+  or a post-payment cancellation never mutates the original `SALE` row - it adds a new
+  reversing row instead, so the full history stays visible (e.g. a seller can see `SALE
+  +$90` and `CANCELLATION -$90` as two separate entries, not one collapsed zero). The
+  "available" vs "pending" bucketing in the summary still reads the order item's *current*
+  `itemStatus` (delivered vs. still in flight) - that's a live fulfillment fact, not a
+  financial one, so it isn't part of what gets snapshotted. `SellerProfile.totalRevenue` /
+  `totalProductsSold` are legacy fields from before any of this existed - they're
+  initialized to zero on seller creation and never incremented anywhere, so nothing reads
+  them for earnings display anymore; the dashboard and sidebar widget both call the ledger
+  endpoints instead. Per-row refund attribution is still a proportional estimate, not exact
+  accounting: `Refund` is recorded against the whole `Payment` (one per `Order`), not per
+  `OrderItem`, so a refund on a multi-seller order is split across sellers by each seller's
+  share of the order's item subtotal. The 19 pre-existing order items from before this
+  table existed were backfilled with one `SALE` row each via a one-time SQL script (not
+  application code) against `demodb`, using each item's actual `order_date` as
+  `created_at` so the backfilled history doesn't all read as "happened at migration time."
 - **Roles are just booleans on `User`** (`isBuyer`, `isSeller`, `isAdmin`), not a
   separate roles/permissions table - there's no session or JWT, so the API has no
   concept of "the caller" independent of the ids the client sends. Admin endpoints
@@ -211,6 +243,8 @@ flowchart LR
 ```
 
 Note the prod profile still needs `ddl-auto: validate` satisfied by hand - `docker-compose up db kafka rabbitmq` to start the brokers, then `sql/schema.sql` applied once against `demodb` (Hibernate won't create the schema itself in this profile, unlike the `dev`/H2 path where `ddl-auto: update` does it automatically).
+
+If the `.env` override above is ever re-enabled to point at an external Postgres instance, remember that instance also needs every `schema.sql` change applied by hand before the container starts against it - `seller_ledger_entries` (added alongside the persisted seller ledger) exists on `demodb` but not on any external instance this override might point at, and a missing table crash-loops the container exactly like the `is_admin` column did.
 
 `docker-compose.yml`'s `api` service reads `DATABASE_URL` / `DATABASE_USER` /
 `DATABASE_PASSWORD` with the local `db` service as the default - a local, gitignored

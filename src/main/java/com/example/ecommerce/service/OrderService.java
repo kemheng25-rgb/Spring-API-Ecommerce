@@ -45,6 +45,7 @@ public class OrderService {
     private final ProductService productService;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final SellerLedgerService sellerLedgerService;
 
     /** Rule 1 + Rule 2: reduce stock immediately, price is whatever was frozen in the cart. */
     public OrderDTOs.OrderResponse placeOrder(Long buyerId, OrderDTOs.PlaceOrderRequest request) {
@@ -208,6 +209,7 @@ public class OrderService {
             throw new InvalidOperationException("Order can only be cancelled before it ships; current status is " + order.getOrderStatus());
         }
 
+        boolean wasConfirmed = order.getOrderStatus() == Order.OrderStatus.CONFIRMED;
         order.getItems().forEach(item -> {
             productService.increaseStock(item.getProduct().getId(), item.getQuantity());
             item.setItemStatus(OrderItem.ItemStatus.CANCELLED);
@@ -215,6 +217,9 @@ public class OrderService {
         order.setOrderStatus(Order.OrderStatus.CANCELLED);
         order.setNotes(appendNote(order.getNotes(), "Cancelled by buyer: " + request.reason()));
 
+        if (wasConfirmed) {
+            sellerLedgerService.recordCancellation(order);
+        }
         return mapToResponse(orderRepository.save(order));
     }
 

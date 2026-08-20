@@ -46,7 +46,7 @@ public class ProductController {
     }
 
     @GetMapping("/api/v1/sellers/{sellerId}/products")
-    @Operation(summary = "Browse a seller's active listings")
+    @Operation(summary = "Seller: list all of their own product listings, any status")
     public ResponseEntity<Page<ProductDTOs.ProductListResponse>> bySeller(@PathVariable Long sellerId, Pageable pageable) {
         return ResponseEntity.ok(productService.getProductsBySeller(sellerId, pageable));
     }

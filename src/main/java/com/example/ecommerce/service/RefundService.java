@@ -31,6 +31,7 @@ public class RefundService {
     private final PaymentRepository paymentRepository;
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+    private final SellerLedgerService sellerLedgerService;
 
     public PaymentDTOs.RefundResponse processRefund(Long initiatedByUserId, PaymentDTOs.ProcessRefundRequest request) {
         User initiator = userRepository.findById(initiatedByUserId)
@@ -75,6 +76,7 @@ public class RefundService {
             payment.setPaymentStatus(Payment.PaymentStatus.REFUNDED);
         }
         paymentRepository.save(payment);
+        sellerLedgerService.recordRefundAdjustment(payment, saved);
 
         auditLogService.log(initiatedByUserId, "PROCESS_REFUND", "PAYMENT", payment.getId(),
             Map.of("refundAmount", request.refundAmount().toString(), "refundReason", request.refundReason()));

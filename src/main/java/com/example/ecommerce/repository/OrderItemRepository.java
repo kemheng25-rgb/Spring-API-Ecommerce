@@ -13,7 +13,7 @@ import java.util.Optional;
 
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
-    
+
     List<OrderItem> findByOrderId(Long orderId);
 
     Optional<OrderItem> findByOrderIdAndProductId(Long orderId, Long productId);
@@ -32,6 +32,10 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
                                          @Param("status") OrderItem.ItemStatus status, Pageable pageable);
     
     long countByOrderId(Long orderId);
-    
+
     long countBySellerIdAndItemStatus(Long sellerId, OrderItem.ItemStatus status);
+
+    /** Seller earnings ledger units-sold metric (see SellerLedgerService) - a fulfillment count, not a monetary figure. */
+    @Query("SELECT COALESCE(SUM(oi.quantity), 0) FROM OrderItem oi WHERE oi.seller.id = :sellerId AND oi.itemStatus = :status")
+    Long sumQuantityBySellerIdAndItemStatus(@Param("sellerId") Long sellerId, @Param("status") OrderItem.ItemStatus status);
 }

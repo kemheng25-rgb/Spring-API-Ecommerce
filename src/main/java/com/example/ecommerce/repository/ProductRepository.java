@@ -32,9 +32,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Page<Product> findByProductStatusAndCategoryId(Product.ProductStatus status, Long categoryId, Pageable pageable);
     
     Page<Product> findBySellerId(Long sellerId, Pageable pageable);
-    
-    Page<Product> findBySellerIdAndProductStatus(Long sellerId, Product.ProductStatus status, Pageable pageable);
-    
+
     Page<Product> findByProductStatusOrderByAverageRatingDesc(Product.ProductStatus status, Pageable pageable);
     
     Page<Product> findByProductStatusOrderByCreatedAtDesc(Product.ProductStatus status, Pageable pageable);

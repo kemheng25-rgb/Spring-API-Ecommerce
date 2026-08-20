@@ -20,6 +20,8 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=guest
       - RABBITMQ_PASSWORD=guest
+    volumes:
+      - uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -110,3 +112,4 @@ services:
 volumes:
   pgdata:
   kafkadata:
+  uploads:

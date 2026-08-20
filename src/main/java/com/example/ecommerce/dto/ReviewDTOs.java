@@ -38,6 +38,7 @@ public class ReviewDTOs {
     public record ReviewResponse(
         Long reviewId,
         Long productId,
+        String productName,
         Long buyerId,
         String buyerName,
         Integer rating,
@@ -60,7 +61,9 @@ public class ReviewDTOs {
         Boolean verifiedPurchase,
         Integer helpfulCount,
         String buyerName,
-        String createdAt
+        String createdAt,
+        String sellerResponse,
+        String sellerResponseAt
     ) {}
     
     public record SellerResponseRequest(

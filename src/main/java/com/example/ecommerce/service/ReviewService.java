@@ -88,6 +88,19 @@ public class ReviewService {
         return reviewRepository.findByBuyerId(buyerId, pageable).map(this::mapToResponse);
     }
 
+    /** Admin: reviews awaiting moderation (or any other status), across all products. */
+    @Transactional(readOnly = true)
+    public Page<ReviewDTOs.ReviewResponse> getReviewsByStatus(String status, Pageable pageable) {
+        Review.ReviewStatus reviewStatus = Review.ReviewStatus.valueOf(status);
+        return reviewRepository.findByReviewStatusOrderByCreatedAtDesc(reviewStatus, pageable).map(this::mapToResponse);
+    }
+
+    /** Seller: reviews across all of their products, so they can respond regardless of moderation status. */
+    @Transactional(readOnly = true)
+    public Page<ReviewDTOs.ReviewResponse> getSellerReviews(Long sellerId, Pageable pageable) {
+        return reviewRepository.findBySellerId(sellerId, pageable).map(this::mapToResponse);
+    }
+
     public ReviewDTOs.ReviewResponse updateReview(Long buyerId, Long reviewId, ReviewDTOs.UpdateReviewRequest request) {
         Review review = requireOwnedReview(reviewId, buyerId);
 
@@ -195,6 +208,7 @@ public class ReviewService {
         return new ReviewDTOs.ReviewResponse(
             review.getId(),
             review.getProduct().getId(),
+            review.getProduct().getProductName(),
             review.getBuyer().getId(),
             review.getBuyer().getFullName(),
             review.getRating(),
@@ -219,7 +233,9 @@ public class ReviewService {
             review.getVerifiedPurchase(),
             review.getHelpfulCount(),
             review.getBuyer().getFullName(),
-            review.getCreatedAt().toString()
+            review.getCreatedAt().toString(),
+            review.getSellerResponse(),
+            review.getSellerResponseAt() != null ? review.getSellerResponseAt().toString() : null
         );
     }
 }

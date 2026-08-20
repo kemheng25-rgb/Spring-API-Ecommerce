@@ -68,9 +68,10 @@ public class ProductDTOs {
         Long sellerId,
         String sellerName,
         Integer viewsCount,
-        String createdAt
+        String createdAt,
+        String primaryImageUrl
     ) {}
-    
+
     public record ProductListResponse(
         Long id,
         String productName,
@@ -80,6 +81,7 @@ public class ProductDTOs {
         Integer totalReviews,
         BigDecimal discountPercentage,
         String categoryName,
-        String sellerName
+        String sellerName,
+        String primaryImageUrl
     ) {}
 }

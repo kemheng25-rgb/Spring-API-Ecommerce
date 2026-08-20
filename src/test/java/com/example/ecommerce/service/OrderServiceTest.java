@@ -40,6 +40,7 @@ class OrderServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private ProductService productService;
     @Mock private OutboxEventRepository outboxEventRepository;
+    @Mock private SellerLedgerService sellerLedgerService;
 
     private OrderService orderService;
 
@@ -47,7 +48,7 @@ class OrderServiceTest {
     void setUp() {
         orderService = new OrderService(orderRepository, orderItemRepository, cartRepository,
             cartItemRepository, addressRepository, userRepository, productService,
-            outboxEventRepository, new com.fasterxml.jackson.databind.ObjectMapper());
+            outboxEventRepository, new com.fasterxml.jackson.databind.ObjectMapper(), sellerLedgerService);
     }
 
     private User buyer(long id) {

@@ -7,15 +7,18 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ProductImageRepository extends JpaRepository<ProductImage, Long> {
-    
+
     List<ProductImage> findByProductIdOrderByDisplayOrder(Long productId);
-    
+
     Page<ProductImage> findByProductId(Long productId, Pageable pageable);
-    
+
     long countByProductId(Long productId);
-    
+
     void deleteByProductId(Long productId);
+
+    Optional<ProductImage> findFirstByProductIdOrderByDisplayOrderAsc(Long productId);
 }

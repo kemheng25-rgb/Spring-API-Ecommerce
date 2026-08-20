@@ -6,6 +6,7 @@ import com.example.ecommerce.model.Category;
 import com.example.ecommerce.model.Product;
 import com.example.ecommerce.model.SellerProfile;
 import com.example.ecommerce.repository.CategoryRepository;
+import com.example.ecommerce.repository.ProductImageRepository;
 import com.example.ecommerce.repository.ProductRepository;
 import com.example.ecommerce.repository.SellerProfileRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,12 +31,13 @@ class ProductServiceTest {
     @Mock private ProductRepository productRepository;
     @Mock private SellerProfileRepository sellerProfileRepository;
     @Mock private CategoryRepository categoryRepository;
+    @Mock private ProductImageRepository productImageRepository;
 
     private ProductService productService;
 
     @BeforeEach
     void setUp() {
-        productService = new ProductService(productRepository, sellerProfileRepository, categoryRepository);
+        productService = new ProductService(productRepository, sellerProfileRepository, categoryRepository, productImageRepository);
     }
 
     @Test

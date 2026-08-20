@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -114,5 +116,33 @@ class ReviewServiceTest {
 
         assertThat(response.verifiedPurchase()).isTrue();
         assertThat(response.reviewStatus()).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("admin: lists reviews by status across all products, for moderation")
+    void getReviewsByStatusListsAcrossProducts() {
+        Review pending = Review.builder().id(9L).buyer(buyer).product(product)
+            .rating(3).reviewStatus(Review.ReviewStatus.PENDING).createdAt(LocalDateTime.now()).build();
+        when(reviewRepository.findByReviewStatusOrderByCreatedAtDesc(Review.ReviewStatus.PENDING, Pageable.unpaged()))
+            .thenReturn(new PageImpl<>(List.of(pending)));
+
+        var result = reviewService.getReviewsByStatus("PENDING", Pageable.unpaged());
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).reviewStatus()).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("seller: lists reviews across all of their products")
+    void getSellerReviewsListsAcrossSellerProducts() {
+        Review review = Review.builder().id(9L).buyer(buyer).product(product)
+            .rating(4).reviewStatus(Review.ReviewStatus.APPROVED).createdAt(LocalDateTime.now()).build();
+        when(reviewRepository.findBySellerId(7L, Pageable.unpaged()))
+            .thenReturn(new PageImpl<>(List.of(review)));
+
+        var result = reviewService.getSellerReviews(7L, Pageable.unpaged());
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).productId()).isEqualTo(50L);
     }
 }

@@ -22,3 +22,6 @@ logs/
 
 # graphify knowledge-graph output (generated, not part of the app)
 graphify-out/
+
+# Uploaded product images (see ProductImageService/WebConfig) - runtime data, not source
+/uploads/
