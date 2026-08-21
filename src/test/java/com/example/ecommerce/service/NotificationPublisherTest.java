@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.mockito.Mockito.verify;
 
@@ -31,7 +32,8 @@ class NotificationPublisherTest {
     @DisplayName("forwards a PaymentCompletedEvent to the notification queue after commit")
     void onPaymentCompletedSendsToRabbit() {
         PaymentCompletedEvent event = new PaymentCompletedEvent(
-            1L, 10L, "ORD-2026-000010", 1L, "Buyer 1", new BigDecimal("50.00"), "TXN-abc");
+            1L, 10L, "ORD-2026-000010", 1L, "Buyer 1", new BigDecimal("50.00"), "CREDIT_CARD", "TXN-abc",
+            List.of(new PaymentCompletedEvent.Item("Widget", 2, new BigDecimal("25.00"), new BigDecimal("50.00"))));
 
         notificationPublisher.onPaymentCompleted(event);
 

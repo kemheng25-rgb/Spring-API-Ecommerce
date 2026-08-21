@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -88,9 +89,15 @@ public class PaymentService {
 
         orderService.confirmOrder(order.getId());
         sellerLedgerService.recordSale(order);
+
+        List<PaymentCompletedEvent.Item> items = order.getItems().stream()
+            .map(item -> new PaymentCompletedEvent.Item(
+                item.getProduct().getProductName(), item.getQuantity(), item.getUnitPrice(), item.getSubtotal()))
+            .toList();
         applicationEventPublisher.publishEvent(
             new PaymentCompletedEvent(saved.getId(), order.getId(), order.getOrderNumber(), buyerId,
-                buyer.getFullName(), saved.getAmount(), saved.getTransactionId()));
+                buyer.getFullName(), saved.getAmount(), saved.getPaymentMethod().toString(),
+                saved.getTransactionId(), items));
 
         return mapToResponse(saved);
     }

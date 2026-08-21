@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
@@ -19,7 +20,8 @@ class NotificationListenerTest {
     @DisplayName("handles a PaymentCompletedEvent without throwing")
     void handlesPaymentCompletedEvent() {
         PaymentCompletedEvent event = new PaymentCompletedEvent(
-            1L, 10L, "ORD-2026-000010", 1L, "Buyer 1", new BigDecimal("50.00"), "TXN-abc");
+            1L, 10L, "ORD-2026-000010", 1L, "Buyer 1", new BigDecimal("50.00"), "CREDIT_CARD", "TXN-abc",
+            List.of(new PaymentCompletedEvent.Item("Widget", 2, new BigDecimal("25.00"), new BigDecimal("50.00"))));
 
         assertThatCode(() -> listener.onPaymentCompleted(event)).doesNotThrowAnyException();
     }

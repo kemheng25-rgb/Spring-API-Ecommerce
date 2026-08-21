@@ -39,7 +39,7 @@ public class TelegramNotifier {
         try {
             telegramRestClient.post()
                 .uri("/bot{token}/sendMessage", properties.token())
-                .body(Map.of("chat_id", chatId, "text", text))
+                .body(Map.of("chat_id", chatId, "text", text, "parse_mode", "HTML"))
                 .retrieve()
                 .toBodilessEntity();
             return true;
@@ -47,6 +47,18 @@ public class TelegramNotifier {
             log.error("[telegram] failed to send message to chat {}: {}", chatId, ex.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Messages are sent with parse_mode=HTML (see sendMessage), so any dynamic text interpolated
+     * into a message - a product name, a buyer's name, a free-text reason - must run through this
+     * first or a stray &amp;/&lt;/&gt; breaks Telegram's parser and the whole message is rejected.
+     */
+    public static String escapeHtml(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /** Calls Telegram's getMe to prove the token is valid and the API is reachable. */

@@ -20,9 +20,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.Collectors;
+
+import static com.example.telegram.TelegramNotifier.escapeHtml;
 
 /**
  * Workflow 3 (Shopping &amp; Purchase) and Workflow 4 (Order Fulfillment) from Phase 1, plus
@@ -91,6 +93,7 @@ public class OrderService {
 
         BigDecimal total = BigDecimal.ZERO;
         List<OrderPlacedEvent.Item> eventItems = new ArrayList<>();
+        List<String> itemLines = new ArrayList<>();
         for (CartItem cartItem : cartItems) {
             Product product = cartItem.getProduct();
 
@@ -117,6 +120,7 @@ public class OrderService {
                 .build();
             orderItemRepository.save(orderItem);
             eventItems.add(new OrderPlacedEvent.Item(product.getId(), product.getProductName(), cartItem.getQuantity()));
+            itemLines.add(formatItemLine(product.getProductName(), cartItem.getQuantity(), subtotal));
         }
 
         savedOrder.setTotalAmount(total);
@@ -124,11 +128,9 @@ public class OrderService {
         cartItemRepository.deleteByCartId(cart.getId());
         recordOrderPlacedEvent(savedOrder, buyerId, eventItems);
 
-        String itemsSummary = eventItems.stream()
-            .map(item -> item.productName() + " x" + item.quantity())
-            .collect(Collectors.joining(", "));
-        telegramNotifier.sendMessage("New order %s placed by %s - total %s - %s".formatted(
-            savedOrder.getOrderNumber(), buyer.getFullName(), total, itemsSummary));
+        telegramNotifier.sendMessage(buildInvoiceMessage(
+            "New Order Placed", savedOrder.getOrderNumber(), buyer.getFullName(),
+            Collections.emptyList(), itemLines, total));
 
         return mapToResponse(requireOrder(savedOrder.getId()));
     }
@@ -182,8 +184,9 @@ public class OrderService {
         order.setOrderStatus(Order.OrderStatus.PACKED);
         order.getItems().forEach(item -> item.setItemStatus(OrderItem.ItemStatus.PACKED));
         OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
-        telegramNotifier.sendMessage("Order %s packed - buyer %s - %s".formatted(
-            order.getOrderNumber(), order.getBuyer().getFullName(), describeItems(order)));
+        telegramNotifier.sendMessage(buildInvoiceMessage(
+            "Order Packed", order.getOrderNumber(), order.getBuyer().getFullName(),
+            Collections.emptyList(), formatItemLines(order), order.getTotalAmount()));
         return response;
     }
 
@@ -197,8 +200,9 @@ public class OrderService {
         order.setTrackingNumber(trackingNumber);
         order.getItems().forEach(item -> item.setItemStatus(OrderItem.ItemStatus.SHIPPED));
         OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
-        telegramNotifier.sendMessage("Order %s shipped (tracking %s) - buyer %s - %s".formatted(
-            order.getOrderNumber(), trackingNumber, order.getBuyer().getFullName(), describeItems(order)));
+        telegramNotifier.sendMessage(buildInvoiceMessage(
+            "Order Shipped", order.getOrderNumber(), order.getBuyer().getFullName(),
+            List.of("Tracking: " + escapeHtml(trackingNumber)), formatItemLines(order), order.getTotalAmount()));
         return response;
     }
 
@@ -210,8 +214,9 @@ public class OrderService {
         order.setActualDeliveryDate(LocalDateTime.now().toLocalDate());
         order.getItems().forEach(item -> item.setItemStatus(OrderItem.ItemStatus.DELIVERED));
         OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
-        telegramNotifier.sendMessage("Order %s delivered to %s - %s".formatted(
-            order.getOrderNumber(), order.getBuyer().getFullName(), describeItems(order)));
+        telegramNotifier.sendMessage(buildInvoiceMessage(
+            "Order Delivered", order.getOrderNumber(), order.getBuyer().getFullName(),
+            Collections.emptyList(), formatItemLines(order), order.getTotalAmount()));
         return response;
     }
 
@@ -239,8 +244,9 @@ public class OrderService {
             sellerLedgerService.recordCancellation(order);
         }
         OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
-        telegramNotifier.sendMessage("Order %s cancelled by %s - reason: %s".formatted(
-            order.getOrderNumber(), order.getBuyer().getFullName(), request.reason()));
+        telegramNotifier.sendMessage(buildInvoiceMessage(
+            "Order Cancelled", order.getOrderNumber(), order.getBuyer().getFullName(),
+            List.of("Reason: " + escapeHtml(request.reason())), formatItemLines(order), order.getTotalAmount()));
         return response;
     }
 
@@ -268,9 +274,11 @@ public class OrderService {
         }
 
         OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
-        telegramNotifier.sendMessage("Return initiated on order %s for %s x%d by %s - reason: %s".formatted(
-            order.getOrderNumber(), item.getProduct().getProductName(), item.getQuantity(),
-            order.getBuyer().getFullName(), request.reason()));
+        telegramNotifier.sendMessage(buildInvoiceMessage(
+            "Return Initiated", order.getOrderNumber(), order.getBuyer().getFullName(),
+            List.of("Reason: " + escapeHtml(request.reason())),
+            List.of(formatItemLine(item.getProduct().getProductName(), item.getQuantity(), item.getSubtotal())),
+            item.getSubtotal()));
         return response;
     }
 
@@ -302,10 +310,28 @@ public class OrderService {
         }
     }
 
-    private String describeItems(Order order) {
+    private List<String> formatItemLines(Order order) {
         return order.getItems().stream()
-            .map(item -> item.getProduct().getProductName() + " x" + item.getQuantity())
-            .collect(Collectors.joining(", "));
+            .map(item -> formatItemLine(item.getProduct().getProductName(), item.getQuantity(), item.getSubtotal()))
+            .toList();
+    }
+
+    private String formatItemLine(String productName, int quantity, BigDecimal lineTotal) {
+        return "- %s x%d - %s".formatted(escapeHtml(productName), quantity, lineTotal);
+    }
+
+    /** Shared layout for every order-lifecycle Telegram message - keeps them all HTML-safe and consistent. */
+    private String buildInvoiceMessage(String title, String orderNumber, String buyerName,
+            List<String> extraLines, List<String> itemLines, BigDecimal total) {
+        StringBuilder header = new StringBuilder();
+        header.append("<b>").append(escapeHtml(title)).append("</b>\n");
+        header.append("Order: ").append(escapeHtml(orderNumber)).append("\n");
+        header.append("Buyer: ").append(escapeHtml(buyerName));
+        for (String line : extraLines) {
+            header.append("\n").append(line);
+        }
+
+        return header + "\n\n<b>Items</b>\n" + String.join("\n", itemLines) + "\n\n<b>Total: " + total + "</b>";
     }
 
     private String appendNote(String existing, String addition) {
