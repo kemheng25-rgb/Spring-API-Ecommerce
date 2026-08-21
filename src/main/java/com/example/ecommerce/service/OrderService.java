@@ -7,6 +7,7 @@ import com.example.ecommerce.exception.OutOfStockException;
 import com.example.ecommerce.exception.ResourceNotFoundException;
 import com.example.ecommerce.model.*;
 import com.example.ecommerce.repository.*;
+import com.example.telegram.TelegramNotifier;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 /**
  * Workflow 3 (Shopping &amp; Purchase) and Workflow 4 (Order Fulfillment) from Phase 1, plus
@@ -46,6 +48,7 @@ public class OrderService {
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
     private final SellerLedgerService sellerLedgerService;
+    private final TelegramNotifier telegramNotifier;
 
     /** Rule 1 + Rule 2: reduce stock immediately, price is whatever was frozen in the cart. */
     public OrderDTOs.OrderResponse placeOrder(Long buyerId, OrderDTOs.PlaceOrderRequest request) {
@@ -121,6 +124,12 @@ public class OrderService {
         cartItemRepository.deleteByCartId(cart.getId());
         recordOrderPlacedEvent(savedOrder, buyerId, eventItems);
 
+        String itemsSummary = eventItems.stream()
+            .map(item -> item.productName() + " x" + item.quantity())
+            .collect(Collectors.joining(", "));
+        telegramNotifier.sendMessage("New order %s placed by %s - total %s - %s".formatted(
+            savedOrder.getOrderNumber(), buyer.getFullName(), total, itemsSummary));
+
         return mapToResponse(requireOrder(savedOrder.getId()));
     }
 
@@ -172,7 +181,10 @@ public class OrderService {
         requireStatus(order, Order.OrderStatus.CONFIRMED);
         order.setOrderStatus(Order.OrderStatus.PACKED);
         order.getItems().forEach(item -> item.setItemStatus(OrderItem.ItemStatus.PACKED));
-        return mapToResponse(orderRepository.save(order));
+        OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
+        telegramNotifier.sendMessage("Order %s packed - buyer %s - %s".formatted(
+            order.getOrderNumber(), order.getBuyer().getFullName(), describeItems(order)));
+        return response;
     }
 
     public OrderDTOs.OrderResponse shipOrder(Long orderId, Long sellerId, String trackingNumber) {
@@ -184,7 +196,10 @@ public class OrderService {
         order.setOrderStatus(Order.OrderStatus.SHIPPED);
         order.setTrackingNumber(trackingNumber);
         order.getItems().forEach(item -> item.setItemStatus(OrderItem.ItemStatus.SHIPPED));
-        return mapToResponse(orderRepository.save(order));
+        OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
+        telegramNotifier.sendMessage("Order %s shipped (tracking %s) - buyer %s - %s".formatted(
+            order.getOrderNumber(), trackingNumber, order.getBuyer().getFullName(), describeItems(order)));
+        return response;
     }
 
     /** Buyer (or an automated delivery webhook) confirms the parcel arrived. */
@@ -194,7 +209,10 @@ public class OrderService {
         order.setOrderStatus(Order.OrderStatus.DELIVERED);
         order.setActualDeliveryDate(LocalDateTime.now().toLocalDate());
         order.getItems().forEach(item -> item.setItemStatus(OrderItem.ItemStatus.DELIVERED));
-        return mapToResponse(orderRepository.save(order));
+        OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
+        telegramNotifier.sendMessage("Order %s delivered to %s - %s".formatted(
+            order.getOrderNumber(), order.getBuyer().getFullName(), describeItems(order)));
+        return response;
     }
 
     /**
@@ -220,7 +238,10 @@ public class OrderService {
         if (wasConfirmed) {
             sellerLedgerService.recordCancellation(order);
         }
-        return mapToResponse(orderRepository.save(order));
+        OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
+        telegramNotifier.sendMessage("Order %s cancelled by %s - reason: %s".formatted(
+            order.getOrderNumber(), order.getBuyer().getFullName(), request.reason()));
+        return response;
     }
 
     /** Workflow 4 step 6: buyer has a window after delivery to start a return on one item. */
@@ -246,7 +267,11 @@ public class OrderService {
             order.setOrderStatus(Order.OrderStatus.RETURNED);
         }
 
-        return mapToResponse(orderRepository.save(order));
+        OrderDTOs.OrderResponse response = mapToResponse(orderRepository.save(order));
+        telegramNotifier.sendMessage("Return initiated on order %s for %s x%d by %s - reason: %s".formatted(
+            order.getOrderNumber(), item.getProduct().getProductName(), item.getQuantity(),
+            order.getBuyer().getFullName(), request.reason()));
+        return response;
     }
 
     private Order requireOrder(Long orderId) {
@@ -275,6 +300,12 @@ public class OrderService {
         if (order.getOrderStatus() != expected) {
             throw new InvalidOperationException("Expected order status " + expected + " but was " + order.getOrderStatus());
         }
+    }
+
+    private String describeItems(Order order) {
+        return order.getItems().stream()
+            .map(item -> item.getProduct().getProductName() + " x" + item.getQuantity())
+            .collect(Collectors.joining(", "));
     }
 
     private String appendNote(String existing, String addition) {

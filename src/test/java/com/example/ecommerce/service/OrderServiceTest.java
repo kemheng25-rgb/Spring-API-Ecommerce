@@ -7,6 +7,7 @@ import com.example.ecommerce.exception.OutOfStockException;
 import com.example.ecommerce.exception.ResourceNotFoundException;
 import com.example.ecommerce.model.*;
 import com.example.ecommerce.repository.*;
+import com.example.telegram.TelegramNotifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,6 +42,7 @@ class OrderServiceTest {
     @Mock private ProductService productService;
     @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private SellerLedgerService sellerLedgerService;
+    @Mock private TelegramNotifier telegramNotifier;
 
     private OrderService orderService;
 
@@ -48,7 +50,8 @@ class OrderServiceTest {
     void setUp() {
         orderService = new OrderService(orderRepository, orderItemRepository, cartRepository,
             cartItemRepository, addressRepository, userRepository, productService,
-            outboxEventRepository, new com.fasterxml.jackson.databind.ObjectMapper(), sellerLedgerService);
+            outboxEventRepository, new com.fasterxml.jackson.databind.ObjectMapper(), sellerLedgerService,
+            telegramNotifier);
     }
 
     private User buyer(long id) {
