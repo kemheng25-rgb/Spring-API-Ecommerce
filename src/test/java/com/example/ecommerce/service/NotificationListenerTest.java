@@ -1,17 +1,19 @@
 package com.example.ecommerce.service;
 
 import com.example.ecommerce.event.PaymentCompletedEvent;
+import com.example.telegram.TelegramNotifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.mock;
 
 @DisplayName("NotificationListener")
 class NotificationListenerTest {
 
-    private final NotificationListener listener = new NotificationListener();
+    private final NotificationListener listener = new NotificationListener(mock(TelegramNotifier.class));
 
     @Test
     @DisplayName("handles a PaymentCompletedEvent without throwing")

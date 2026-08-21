@@ -52,6 +52,13 @@ spring:
       max-file-size: 5MB
       max-request-size: 5MB
 
+# ---- Telegram: com.example.telegram package, standalone/copy-paste-able into other projects ----
+telegram:
+  bot:
+    enabled: ${TELEGRAM_ENABLED:false}
+    token: ${TELEGRAM_BOT_TOKEN:}
+    chat-id: ${TELEGRAM_CHAT_ID:}
+
 # ---- CORS: browser-based clients (e.g. the Nuxt frontend) call this API directly from JS ----
 app:
   cors:
