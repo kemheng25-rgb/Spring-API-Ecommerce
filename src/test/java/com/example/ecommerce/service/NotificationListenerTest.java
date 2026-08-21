@@ -18,7 +18,8 @@ class NotificationListenerTest {
     @Test
     @DisplayName("handles a PaymentCompletedEvent without throwing")
     void handlesPaymentCompletedEvent() {
-        PaymentCompletedEvent event = new PaymentCompletedEvent(1L, 10L, 1L, new BigDecimal("50.00"), "TXN-abc");
+        PaymentCompletedEvent event = new PaymentCompletedEvent(
+            1L, 10L, "ORD-2026-000010", 1L, "Buyer 1", new BigDecimal("50.00"), "TXN-abc");
 
         assertThatCode(() -> listener.onPaymentCompleted(event)).doesNotThrowAnyException();
     }

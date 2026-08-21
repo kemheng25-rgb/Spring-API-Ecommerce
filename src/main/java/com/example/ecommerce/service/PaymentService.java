@@ -89,7 +89,8 @@ public class PaymentService {
         orderService.confirmOrder(order.getId());
         sellerLedgerService.recordSale(order);
         applicationEventPublisher.publishEvent(
-            new PaymentCompletedEvent(saved.getId(), order.getId(), buyerId, saved.getAmount(), saved.getTransactionId()));
+            new PaymentCompletedEvent(saved.getId(), order.getId(), order.getOrderNumber(), buyerId,
+                buyer.getFullName(), saved.getAmount(), saved.getTransactionId()));
 
         return mapToResponse(saved);
     }

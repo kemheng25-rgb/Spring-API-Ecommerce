@@ -30,7 +30,8 @@ class NotificationPublisherTest {
     @Test
     @DisplayName("forwards a PaymentCompletedEvent to the notification queue after commit")
     void onPaymentCompletedSendsToRabbit() {
-        PaymentCompletedEvent event = new PaymentCompletedEvent(1L, 10L, 1L, new BigDecimal("50.00"), "TXN-abc");
+        PaymentCompletedEvent event = new PaymentCompletedEvent(
+            1L, 10L, "ORD-2026-000010", 1L, "Buyer 1", new BigDecimal("50.00"), "TXN-abc");
 
         notificationPublisher.onPaymentCompleted(event);
 

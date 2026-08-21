@@ -18,10 +18,10 @@ public class NotificationListener {
     @RabbitListener(queues = RabbitMQConfig.NOTIFICATION_QUEUE)
     public void onPaymentCompleted(PaymentCompletedEvent event) {
         log.info("[notification-service] sending payment confirmation for order {} (txn {})",
-            event.orderId(), event.transactionId());
+            event.orderNumber(), event.transactionId());
 
         telegramNotifier.sendMessage(
-            "Payment confirmed for order #%d - amount %s (txn %s)".formatted(
-                event.orderId(), event.amount(), event.transactionId()));
+            "Payment confirmed for order %s by %s - amount %s (txn %s)".formatted(
+                event.orderNumber(), event.buyerName(), event.amount(), event.transactionId()));
     }
 }
