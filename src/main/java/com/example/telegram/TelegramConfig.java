@@ -25,4 +25,9 @@ public class TelegramConfig {
     TelegramNotifier telegramNotifier(RestClient telegramRestClient, TelegramProperties properties) {
         return new TelegramNotifier(telegramRestClient, properties);
     }
+
+    @Bean
+    TelegramController telegramController(TelegramNotifier telegramNotifier) {
+        return new TelegramController(telegramNotifier);
+    }
 }

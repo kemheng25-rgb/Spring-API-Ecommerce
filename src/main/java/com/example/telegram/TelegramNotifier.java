@@ -1,5 +1,6 @@
 package com.example.telegram;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestClient;
@@ -21,19 +22,18 @@ public class TelegramNotifier {
     private final RestClient telegramRestClient;
     private final TelegramProperties properties;
 
-    public void sendMessage(String text) {
-        sendMessage(properties.chatId(), text);
+    public boolean sendMessage(String text) {
+        return sendMessage(properties.chatId(), text);
     }
 
-    public void sendMessage(String chatId, String text) {
+    public boolean sendMessage(String chatId, String text) {
         if (!properties.enabled()) {
             log.debug("[telegram] disabled, skipping message: {}", text);
-            return;
+            return false;
         }
-        if (properties.token() == null || properties.token().isBlank()
-            || chatId == null || chatId.isBlank()) {
+        if (!isConfigured() || chatId == null || chatId.isBlank()) {
             log.warn("[telegram] enabled but token/chat-id missing, skipping message");
-            return;
+            return false;
         }
 
         try {
@@ -42,8 +42,44 @@ public class TelegramNotifier {
                 .body(Map.of("chat_id", chatId, "text", text))
                 .retrieve()
                 .toBodilessEntity();
+            return true;
         } catch (Exception ex) {
             log.error("[telegram] failed to send message to chat {}: {}", chatId, ex.getMessage());
+            return false;
         }
     }
+
+    /** Calls Telegram's getMe to prove the token is valid and the API is reachable. */
+    public TelegramStatus fetchStatus() {
+        if (!properties.enabled()) {
+            return new TelegramStatus(false, isConfigured(), false, null, "disabled");
+        }
+        if (!isConfigured()) {
+            return new TelegramStatus(true, false, false, null, "token or chat-id not set");
+        }
+
+        try {
+            TelegramMeResponse response = telegramRestClient.get()
+                .uri("/bot{token}/getMe", properties.token())
+                .retrieve()
+                .body(TelegramMeResponse.class);
+
+            if (response != null && response.ok() && response.result() != null) {
+                return new TelegramStatus(true, true, true, response.result().username(), null);
+            }
+            return new TelegramStatus(true, true, false, null, "unexpected response from Telegram");
+        } catch (Exception ex) {
+            log.warn("[telegram] status check failed: {}", ex.getMessage());
+            return new TelegramStatus(true, true, false, null, ex.getMessage());
+        }
+    }
+
+    private boolean isConfigured() {
+        return properties.token() != null && !properties.token().isBlank()
+            && properties.chatId() != null && !properties.chatId().isBlank();
+    }
+
+    private record TelegramMeResponse(boolean ok, TelegramMe result) {}
+
+    private record TelegramMe(String username, @JsonProperty("first_name") String firstName) {}
 }
