@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -37,14 +38,45 @@ import java.util.UUID;
 @Transactional
 public class PaymentService {
 
+    private static final String IDEMPOTENCY_SCOPE = "PAYMENT";
+
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final OrderService orderService;
     private final SellerLedgerService sellerLedgerService;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final IdempotencyService idempotencyService;
 
-    public PaymentDTOs.PaymentResponse processPayment(Long buyerId, PaymentDTOs.ProcessPaymentRequest request) {
+    /**
+     * idempotencyKey is optional (null when the caller doesn't send one) - a retry of a lost
+     * response, or a double-tap on "Pay", replays the original result instead of charging twice.
+     */
+    public PaymentDTOs.PaymentResponse processPayment(
+            Long buyerId, PaymentDTOs.ProcessPaymentRequest request, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return doProcessPayment(buyerId, request);
+        }
+
+        String fingerprint = IdempotencyService.fingerprint(
+            buyerId, request.orderId(), request.paymentMethod(), request.amount());
+        Optional<PaymentDTOs.PaymentResponse> cached =
+            idempotencyService.claim(idempotencyKey, IDEMPOTENCY_SCOPE, fingerprint, PaymentDTOs.PaymentResponse.class);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        try {
+            PaymentDTOs.PaymentResponse response = doProcessPayment(buyerId, request);
+            idempotencyService.complete(idempotencyKey, IDEMPOTENCY_SCOPE, response);
+            return response;
+        } catch (RuntimeException ex) {
+            idempotencyService.release(idempotencyKey, IDEMPOTENCY_SCOPE);
+            throw ex;
+        }
+    }
+
+    private PaymentDTOs.PaymentResponse doProcessPayment(Long buyerId, PaymentDTOs.ProcessPaymentRequest request) {
         User buyer = userRepository.findById(buyerId)
             .orElseThrow(() -> new ResourceNotFoundException("User", buyerId));
 

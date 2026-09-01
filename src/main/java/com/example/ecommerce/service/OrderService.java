@@ -22,6 +22,7 @@ import java.time.Year;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.example.telegram.TelegramNotifier.escapeHtml;
@@ -39,6 +40,7 @@ public class OrderService {
 
     private static final int MAX_ORDER_NUMBER_ATTEMPTS = 5;
     private static final int ESTIMATED_SHIPPING_DAYS = 5;
+    private static final String IDEMPOTENCY_SCOPE = "ORDER_PLACEMENT";
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -51,9 +53,37 @@ public class OrderService {
     private final ObjectMapper objectMapper;
     private final SellerLedgerService sellerLedgerService;
     private final TelegramNotifier telegramNotifier;
+    private final IdempotencyService idempotencyService;
+
+    /**
+     * idempotencyKey is optional (null when the caller doesn't send one) - a retry of a lost
+     * response replays the original order instead of placing (and reducing stock for) a second one.
+     */
+    public OrderDTOs.OrderResponse placeOrder(Long buyerId, OrderDTOs.PlaceOrderRequest request, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return doPlaceOrder(buyerId, request);
+        }
+
+        String fingerprint = IdempotencyService.fingerprint(
+            buyerId, request.shippingAddressId(), request.billingAddressId(), request.shippingMethod());
+        Optional<OrderDTOs.OrderResponse> cached =
+            idempotencyService.claim(idempotencyKey, IDEMPOTENCY_SCOPE, fingerprint, OrderDTOs.OrderResponse.class);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        try {
+            OrderDTOs.OrderResponse response = doPlaceOrder(buyerId, request);
+            idempotencyService.complete(idempotencyKey, IDEMPOTENCY_SCOPE, response);
+            return response;
+        } catch (RuntimeException ex) {
+            idempotencyService.release(idempotencyKey, IDEMPOTENCY_SCOPE);
+            throw ex;
+        }
+    }
 
     /** Rule 1 + Rule 2: reduce stock immediately, price is whatever was frozen in the cart. */
-    public OrderDTOs.OrderResponse placeOrder(Long buyerId, OrderDTOs.PlaceOrderRequest request) {
+    private OrderDTOs.OrderResponse doPlaceOrder(Long buyerId, OrderDTOs.PlaceOrderRequest request) {
         User buyer = userRepository.findById(buyerId)
             .orElseThrow(() -> new ResourceNotFoundException("User", buyerId));
 

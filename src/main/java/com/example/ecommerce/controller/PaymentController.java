@@ -22,8 +22,9 @@ public class PaymentController {
     @PostMapping("/api/v1/users/{buyerId}/payments")
     @Operation(summary = "Attempt payment for a pending order")
     public ResponseEntity<PaymentDTOs.PaymentResponse> processPayment(
-            @PathVariable Long buyerId, @Valid @RequestBody PaymentDTOs.ProcessPaymentRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.processPayment(buyerId, request));
+            @PathVariable Long buyerId, @Valid @RequestBody PaymentDTOs.ProcessPaymentRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.processPayment(buyerId, request, idempotencyKey));
     }
 
     @GetMapping("/api/v1/payments/{id}")

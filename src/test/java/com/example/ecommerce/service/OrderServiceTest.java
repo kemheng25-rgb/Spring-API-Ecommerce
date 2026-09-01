@@ -43,6 +43,7 @@ class OrderServiceTest {
     @Mock private OutboxEventRepository outboxEventRepository;
     @Mock private SellerLedgerService sellerLedgerService;
     @Mock private TelegramNotifier telegramNotifier;
+    @Mock private IdempotencyService idempotencyService;
 
     private OrderService orderService;
 
@@ -51,7 +52,7 @@ class OrderServiceTest {
         orderService = new OrderService(orderRepository, orderItemRepository, cartRepository,
             cartItemRepository, addressRepository, userRepository, productService,
             outboxEventRepository, new com.fasterxml.jackson.databind.ObjectMapper(), sellerLedgerService,
-            telegramNotifier);
+            telegramNotifier, idempotencyService);
     }
 
     private User buyer(long id) {
@@ -79,7 +80,7 @@ class OrderServiceTest {
 
         OrderDTOs.PlaceOrderRequest request = new OrderDTOs.PlaceOrderRequest(5L, null, "STANDARD");
 
-        assertThatThrownBy(() -> orderService.placeOrder(1L, request))
+        assertThatThrownBy(() -> orderService.placeOrder(1L, request, null))
             .isInstanceOf(InvalidOperationException.class)
             .hasMessageContaining("empty cart");
     }
@@ -119,7 +120,7 @@ class OrderServiceTest {
         when(orderRepository.findById(900L)).thenReturn(Optional.of(persistedOrder));
 
         OrderDTOs.PlaceOrderRequest request = new OrderDTOs.PlaceOrderRequest(5L, null, "STANDARD");
-        OrderDTOs.OrderResponse response = orderService.placeOrder(1L, request);
+        OrderDTOs.OrderResponse response = orderService.placeOrder(1L, request, null);
 
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().get(0).unitPrice()).isEqualByComparingTo("19.99");
@@ -156,7 +157,7 @@ class OrderServiceTest {
         when(orderRepository.findById(900L)).thenReturn(Optional.of(persistedOrder));
 
         OrderDTOs.PlaceOrderRequest request = new OrderDTOs.PlaceOrderRequest(5L, null, "STANDARD");
-        orderService.placeOrder(1L, request);
+        orderService.placeOrder(1L, request, null);
 
         ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
         verify(outboxEventRepository).save(captor.capture());
@@ -199,7 +200,7 @@ class OrderServiceTest {
 
         OrderDTOs.PlaceOrderRequest request = new OrderDTOs.PlaceOrderRequest(5L, null, "STANDARD");
 
-        assertThatThrownBy(() -> orderService.placeOrder(1L, request))
+        assertThatThrownBy(() -> orderService.placeOrder(1L, request, null))
             .isInstanceOf(OutOfStockException.class);
         verify(cartItemRepository, never()).deleteByCartId(anyLong());
     }
@@ -238,5 +239,21 @@ class OrderServiceTest {
         order.setOrderStatus(Order.OrderStatus.SHIPPED);
         assertThatThrownBy(() -> orderService.cancelOrder(1L, 1L, new OrderDTOs.CancelOrderRequest("too late")))
             .isInstanceOf(InvalidOperationException.class);
+    }
+
+    @Test
+    @DisplayName("placeOrder with an idempotency key replays a cached response instead of touching the cart")
+    void placeOrderReplaysCachedResponseForKnownIdempotencyKey() {
+        OrderDTOs.OrderResponse cached = new OrderDTOs.OrderResponse(
+            900L, "ORD-2026-000900", "PENDING", new BigDecimal("39.98"), "STANDARD",
+            null, null, null, LocalDateTime.now().toString(), LocalDateTime.now().toString(), List.of());
+        when(idempotencyService.claim(eq("key-1"), eq("ORDER_PLACEMENT"), anyString(), eq(OrderDTOs.OrderResponse.class)))
+            .thenReturn(Optional.of(cached));
+
+        OrderDTOs.OrderResponse response = orderService.placeOrder(
+            1L, new OrderDTOs.PlaceOrderRequest(5L, null, "STANDARD"), "key-1");
+
+        assertThat(response).isSameAs(cached);
+        verifyNoInteractions(cartRepository, cartItemRepository, productService);
     }
 }

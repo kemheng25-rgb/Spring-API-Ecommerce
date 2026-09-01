@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Set;
 
@@ -38,6 +39,7 @@ class PaymentServiceTest {
     @Mock private OrderService orderService;
     @Mock private SellerLedgerService sellerLedgerService;
     @Mock private ApplicationEventPublisher applicationEventPublisher;
+    @Mock private IdempotencyService idempotencyService;
 
     private PaymentService paymentService;
 
@@ -47,7 +49,7 @@ class PaymentServiceTest {
     @BeforeEach
     void setUp() {
         paymentService = new PaymentService(paymentRepository, orderRepository, userRepository, orderService,
-            sellerLedgerService, applicationEventPublisher);
+            sellerLedgerService, applicationEventPublisher, idempotencyService);
         buyer = User.builder().id(1L).fullName("Buyer").email("b@e.com").build();
         order = Order.builder().id(10L).buyer(buyer).orderStatus(Order.OrderStatus.PENDING)
             .totalAmount(new BigDecimal("50.00")).items(Set.of()).build();
@@ -63,7 +65,7 @@ class PaymentServiceTest {
         PaymentDTOs.ProcessPaymentRequest request = new PaymentDTOs.ProcessPaymentRequest(
             10L, "CREDIT_CARD", new BigDecimal("50.00"), "tok_valid");
 
-        PaymentDTOs.PaymentResponse response = paymentService.processPayment(1L, request);
+        PaymentDTOs.PaymentResponse response = paymentService.processPayment(1L, request, null);
 
         assertThat(response.paymentStatus()).isEqualTo("COMPLETED");
         verify(orderService).confirmOrder(10L);
@@ -85,7 +87,7 @@ class PaymentServiceTest {
         PaymentDTOs.ProcessPaymentRequest request = new PaymentDTOs.ProcessPaymentRequest(
             10L, "CREDIT_CARD", new BigDecimal("50.00"), "");
 
-        assertThatThrownBy(() -> paymentService.processPayment(1L, request))
+        assertThatThrownBy(() -> paymentService.processPayment(1L, request, null))
             .isInstanceOf(PaymentFailedException.class);
 
         verify(orderService, never()).confirmOrder(anyLong());
@@ -102,7 +104,7 @@ class PaymentServiceTest {
         PaymentDTOs.ProcessPaymentRequest request = new PaymentDTOs.ProcessPaymentRequest(
             10L, "CREDIT_CARD", new BigDecimal("1.00"), "tok_valid");
 
-        assertThatThrownBy(() -> paymentService.processPayment(1L, request))
+        assertThatThrownBy(() -> paymentService.processPayment(1L, request, null))
             .isInstanceOf(InvalidOperationException.class)
             .hasMessageContaining("does not match");
         verifyNoInteractions(paymentRepository);
@@ -118,8 +120,25 @@ class PaymentServiceTest {
         PaymentDTOs.ProcessPaymentRequest request = new PaymentDTOs.ProcessPaymentRequest(
             10L, "CREDIT_CARD", new BigDecimal("50.00"), "tok_valid");
 
-        assertThatThrownBy(() -> paymentService.processPayment(99L, request))
+        assertThatThrownBy(() -> paymentService.processPayment(99L, request, null))
             .isInstanceOf(InvalidOperationException.class)
             .hasMessageContaining("does not belong");
+    }
+
+    @Test
+    @DisplayName("processPayment with an idempotency key replays a cached response instead of charging again")
+    void processPaymentReplaysCachedResponseForKnownIdempotencyKey() {
+        PaymentDTOs.PaymentResponse cached = new PaymentDTOs.PaymentResponse(
+            77L, 10L, new BigDecimal("50.00"), "CREDIT_CARD", "COMPLETED",
+            LocalDateTime.now().toString(), "NOT_REFUNDED", BigDecimal.ZERO);
+        when(idempotencyService.claim(eq("key-1"), eq("PAYMENT"), anyString(), eq(PaymentDTOs.PaymentResponse.class)))
+            .thenReturn(Optional.of(cached));
+
+        PaymentDTOs.ProcessPaymentRequest request = new PaymentDTOs.ProcessPaymentRequest(
+            10L, "CREDIT_CARD", new BigDecimal("50.00"), "tok_valid");
+        PaymentDTOs.PaymentResponse response = paymentService.processPayment(1L, request, "key-1");
+
+        assertThat(response).isSameAs(cached);
+        verifyNoInteractions(paymentRepository, applicationEventPublisher, sellerLedgerService);
     }
 }

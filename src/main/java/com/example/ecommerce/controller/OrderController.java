@@ -22,8 +22,9 @@ public class OrderController {
     @PostMapping("/api/v1/users/{buyerId}/orders")
     @Operation(summary = "Place an order from the buyer's cart")
     public ResponseEntity<OrderDTOs.OrderResponse> placeOrder(
-            @PathVariable Long buyerId, @Valid @RequestBody OrderDTOs.PlaceOrderRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(orderService.placeOrder(buyerId, request));
+            @PathVariable Long buyerId, @Valid @RequestBody OrderDTOs.PlaceOrderRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(orderService.placeOrder(buyerId, request, idempotencyKey));
     }
 
     @GetMapping("/api/v1/orders/{orderId}")
